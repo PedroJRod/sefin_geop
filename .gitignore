@@ -1,0 +1,52 @@
+# Ambientes virtuais
+venv/
+.env/
+.venv/
+
+# Cache e compilados
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs e temporários
+*.log
+*.pot
+*.tmp
+*.swp
+*.swo
+
+# Configurações de IDEs/editores
+.vscode/
+.idea/
+*.iml
+
+# Configurações locais
+*.env
+.envrc
+*.ini
+*.cfg
+*.local
+
+# Build, distribuição e pacotes
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Arquivos de teste/coverage
+.coverage
+.tox/
+.nox/
+.pytest_cache/
+
+# Banco de dados locais e cache
+*.db
+*.sqlite3
+
+# Arquivos de sistema (Windows / macOS / Linux)
+.DS_Store
+Thumbs.db
