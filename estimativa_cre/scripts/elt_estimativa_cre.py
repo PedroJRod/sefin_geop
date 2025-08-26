@@ -1,8 +1,6 @@
 import os, duckdb, pandas as pd, ast
 
-pd.set_option("display.float_format", "R$ {:,.2f}".format)
-
-df = pd.read_excel('data/estimativa_cre_16-06-25.xlsx', sheet_name='Projeção', header=8)
+df = pd.read_excel('estimativa_cre/data/raw/estimativa_cre_16-06-25.xlsx', sheet_name='Projeção', header=8)
 df = df.iloc[:, :-6]
 
 date_col = df.iloc[:,11:]
@@ -45,4 +43,4 @@ df_final['valor'] = pd.to_numeric(df_final['valor'], errors='coerce')
 
 df_final['ug_codigo'] = df_final['ug_codigo'].astype(str)
 
-df_final.to_parquet('data/estimativa_cre.parquet', index=False, engine='pyarrow', compression='snappy')
+df_final.to_parquet('estimativa_cre/data/processed/estimativa_cre_16-06-25.parquet', index=False, engine='pyarrow', compression='snappy')
