@@ -175,7 +175,11 @@ df_filtrado['VALOR_CORRIGIDO'] = df_filtrado['VALOR'] * (indice_final / df_filtr
 
 # Totalizador corrigido
 with col2:
-    st.metric("Total Corrigido IPCA (R$)", f"{df_filtrado['VALOR_CORRIGIDO'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+    # Soma corrigida: se VALOR_CORRIGIDO for NaN, usar VALOR
+    soma_corrigida = df_filtrado.apply(
+        lambda row: row['VALOR'] if pd.isna(row['VALOR_CORRIGIDO']) else row['VALOR_CORRIGIDO'], axis=1
+    ).sum()
+    st.metric("Total Corrigido IPCA (R$)", f"{soma_corrigida:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
 # Série temporal corrigida
 st.header("Evolução Mensal dos Precatórios (Valores Corrigidos pelo IPCA)")
