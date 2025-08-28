@@ -234,6 +234,11 @@ if len(anos) > 1:
 # =============================
 st.header("Tabela Final de Precatórios Corrigidos")
 df_precatorios_f = df_filtrado[['ANO','MES','VALOR','DATA_BASE','INDICE','VALOR_CORRIGIDO']].copy()
+# Se VALOR_CORRIGIDO for NaN, usa VALOR
+import numpy as np
+df_precatorios_f['VALOR_CORRIGIDO'] = df_precatorios_f.apply(
+    lambda row: row['VALOR'] if pd.isna(row['VALOR_CORRIGIDO']) else row['VALOR_CORRIGIDO'], axis=1
+)
 df_precatorios_f['VALOR'] = df_precatorios_f['VALOR'].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 df_precatorios_f['VALOR_CORRIGIDO'] = df_precatorios_f['VALOR_CORRIGIDO'].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 st.dataframe(df_precatorios_f)
