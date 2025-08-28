@@ -8,6 +8,10 @@ st.set_page_config(page_title="Relatório de Precatórios", layout="wide")
 
 st.title("Relatório de Precatórios")
 
+st.write('''
+**Consulta realizada nas Notas de Lançamento Contábeis no SIGEF por meio do evento nº 540905 (APROPRIAÇÃO DE PRECATÓRIOS).**
+            ''')
+
 # Diretórios
 PAI_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'notebooks'))
 DATA_RAW = os.path.join(PAI_DIR, "data", "raw")
@@ -37,15 +41,63 @@ df_precatorios = con.execute("""
             ORDER BY 1,2
             """).df()
 
-# Visualização dos dados
-st.dataframe(df_precatorios)
-st.write(df_precatorios.describe())
+# Criar coluna de data base para filtros
+df_precatorios['DATA_BASE'] = pd.to_datetime(dict(year=df_precatorios['ANO'], month=df_precatorios['MES'], day=1))
+
+# =============================
+# 🔹 Filtros
+# =============================
+st.sidebar.header("Filtros")
+
+# Intervalo de datas
+min_data = df_precatorios['DATA_BASE'].min()
+max_data = df_precatorios['DATA_BASE'].max()
+
+periodo = st.sidebar.date_input(
+    "Selecione o período",
+    [min_data, max_data],
+    min_value=min_data,
+    max_value=max_data
+)
+
+# Filtro por ano
+anos_disponiveis = sorted(df_precatorios['ANO'].unique(), reverse=True)
+ano_selecionado = st.sidebar.selectbox("Filtrar por ano", options=["Todos"] + list(anos_disponiveis))
+
+# Aplica filtros
+df_filtrado = df_precatorios.copy()
+
+if len(periodo) == 2:
+    inicio = pd.to_datetime(periodo[0])
+    fim = pd.to_datetime(periodo[1])
+
+    df_filtrado = df_filtrado[
+        (df_filtrado['DATA_BASE'] >= inicio) &
+        (df_filtrado['DATA_BASE'] <= fim)
+    ]
+
+if ano_selecionado != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['ANO'] == ano_selecionado]
+
+# =============================
+# 🔹 Totalizadores
+# =============================
+st.subheader("Totalizadores do Período Selecionado")
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("Total (R$)", f"{df_filtrado['VALOR'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+# =============================
+# 🔹 Visualização dos dados
+# =============================
+st.dataframe(df_filtrado)
+st.write(df_filtrado.describe())
 
 # Série temporal
 st.header("Evolução Mensal dos Precatórios")
-df_precatorios['DATA'] = pd.to_datetime(df_precatorios.rename(columns={'ANO': 'year', 'MES': 'month'})[['year', 'month']].assign(day=1))
+df_filtrado['DATA'] = pd.to_datetime(df_filtrado.rename(columns={'ANO': 'year', 'MES': 'month'})[['year', 'month']].assign(day=1))
 fig, ax = plt.subplots(figsize=(10,5))
-ax.plot(df_precatorios['DATA'], df_precatorios['VALOR'], marker='o')
+ax.plot(df_filtrado['DATA'], df_filtrado['VALOR'], marker='o')
 ax.set_title("Total de Precatórios Mensais")
 ax.set_xlabel("Mês")
 ax.set_ylabel("Total de valores")
@@ -54,13 +106,13 @@ st.pyplot(fig)
 
 # Evolução mensal por ano
 st.header("Evolução Mensal de Precatórios por Ano")
-df_precatorios['ANO'] = df_precatorios['DATA'].dt.year
-df_precatorios['MES'] = df_precatorios['DATA'].dt.month
-anos = sorted(df_precatorios['ANO'].unique(), reverse=True)
+df_filtrado['ANO'] = df_filtrado['DATA'].dt.year
+df_filtrado['MES'] = df_filtrado['DATA'].dt.month
+anos = sorted(df_filtrado['ANO'].unique(), reverse=True)
 meses = range(1,13)
 fig, ax = plt.subplots(figsize=(14,6))
 for ano in anos:
-    df_ano = df_precatorios[df_precatorios['ANO'] == ano]
+    df_ano = df_filtrado[df_filtrado['ANO'] == ano]
     ax.plot(df_ano['MES'], df_ano['VALOR'], marker='o', label=f"Ano {ano}")
 ax.set_title("Evolução Mensal de Precatórios por Ano")
 ax.set_xlabel("Mês")
@@ -72,7 +124,7 @@ st.pyplot(fig)
 
 # Comparação de barras entre anos
 st.header("Comparação Mensal de Precatórios por Ano")
-df_pivot = df_precatorios.pivot(index='MES', columns='ANO', values='VALOR')
+df_pivot = df_filtrado.pivot(index='MES', columns='ANO', values='VALOR')
 fig, ax = plt.subplots(figsize=(14,6))
 df_pivot.plot(kind='bar', ax=ax)
 ax.set_title("Comparação Mensal de Precatórios por Ano")
@@ -97,7 +149,9 @@ if len(anos) > 1:
     ax.grid(axis='y')
     st.pyplot(fig)
 
-# Carregar inflação IPCA
+# =============================
+# 🔹 Correção pelo IPCA
+# =============================
 st.header("Correção dos Precatórios pelo IPCA")
 caminho_ipca = os.path.join(DATA_RAW, 'inflacao_ipca.parquet')
 nome_tabela_ipca = 'inflacao_ipca'
@@ -113,22 +167,34 @@ ipca_mensal = ipca_mensal.sort_values('DATA')
 ipca_mensal['FATOR'] = (1 + ipca_mensal['valor']/100).cumprod()
 ipca_mensal['INDICE'] = ipca_mensal['FATOR'] / ipca_mensal['FATOR'].iloc[0] * 100
 
-df_precatorios['DATA_BASE'] = pd.to_datetime(dict(year=df_precatorios['ANO'], month=df_precatorios['MES'], day=1))
-df_merged = df_precatorios.merge(ipca_mensal[['DATA','INDICE']], left_on='DATA_BASE', right_on='DATA', how='left')
+df_filtrado = df_filtrado.merge(ipca_mensal[['DATA','INDICE']], left_on='DATA_BASE', right_on='DATA', how='left')
 indice_final = ipca_mensal['INDICE'].iloc[-1]
-df_merged['VALOR_CORRIGIDO'] = df_merged['VALOR'] * (indice_final / df_merged['INDICE'])
-df_precatorios = df_merged.copy()
+df_filtrado['VALOR_CORRIGIDO'] = df_filtrado['VALOR'] * (indice_final / df_filtrado['INDICE'])
 
-# Evolução mensal corrigida
+# Totalizador corrigido
+with col2:
+    st.metric("Total Corrigido IPCA (R$)", f"{df_filtrado['VALOR_CORRIGIDO'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+# Série temporal corrigida
+st.header("Evolução Mensal dos Precatórios (Valores Corrigidos pelo IPCA)")
+fig, ax = plt.subplots(figsize=(10,5))
+ax.plot(df_filtrado['DATA_BASE'], df_filtrado['VALOR_CORRIGIDO'], marker='o')
+ax.set_title("Total de Precatórios Mensais Corrigidos")
+ax.set_xlabel("Mês")
+ax.set_ylabel("Total de valores corrigidos")
+ax.grid(True)
+st.pyplot(fig)
+
+# Evolução mensal corrigida por ano
 st.header("Evolução Mensal de Precatórios por Ano (Valores Corrigidos pelo IPCA)")
-anos = sorted(df_precatorios['ANO'].unique(), reverse=True)
+anos = sorted(df_filtrado['ANO'].unique(), reverse=True)
 fig, ax = plt.subplots(figsize=(14,6))
 for ano in anos:
-    df_ano = df_precatorios[df_precatorios['ANO'] == ano]
+    df_ano = df_filtrado[df_filtrado['ANO'] == ano]
     ax.plot(df_ano['MES'], df_ano['VALOR_CORRIGIDO'], marker='o', label=f"Ano {ano}")
-ax.set_title("Evolução Mensal de Precatórios por Ano (Valores Corrigidos pelo IPCA)")
+ax.set_title("Evolução Mensal de Precatórios por Ano (Corrigido pelo IPCA)")
 ax.set_xlabel("Mês")
-ax.set_ylabel("Total de Valores Corrigidos (R$)")
+ax.set_ylabel("Total Corrigido (R$)")
 ax.set_xticks(list(meses))
 ax.grid(True)
 ax.legend()
@@ -136,10 +202,10 @@ st.pyplot(fig)
 
 # Comparação em barras corrigidas
 st.header("Comparação Mensal de Precatórios por Ano (Valores Corrigidos pelo IPCA)")
-df_pivot = df_precatorios.pivot(index='MES', columns='ANO', values='VALOR_CORRIGIDO')
+df_pivot = df_filtrado.pivot(index='MES', columns='ANO', values='VALOR_CORRIGIDO')
 fig, ax = plt.subplots(figsize=(14,6))
 df_pivot.plot(kind='bar', ax=ax)
-ax.set_title("Comparação Mensal de Precatórios por Ano (Valores Corrigidos pelo IPCA)")
+ax.set_title("Comparação Mensal de Precatórios por Ano (Valores Corrigidos)")
 ax.set_xlabel("Mês")
 ax.set_ylabel("Total Corrigido (R$)")
 ax.set_xticks(range(len(meses)))
@@ -147,13 +213,13 @@ ax.set_xticklabels(list(meses))
 ax.grid(axis='y')
 st.pyplot(fig)
 
-# Variação percentual mês a mês entre anos dos valores corrigidos pelo IPCA
+# Variação percentual corrigida
 if len(anos) > 1:
     st.header("Variação Percentual entre Anos (%) - Valores Corrigidos pelo IPCA")
     df_var_corrigido = df_pivot.pct_change(axis=1) * 100
     fig, ax = plt.subplots(figsize=(14,6))
     df_var_corrigido.plot(kind='bar', ax=ax)
-    ax.set_title("Variação Percentual entre Anos (%) - Valores Corrigidos pelo IPCA")
+    ax.set_title("Variação Percentual entre Anos (%) - Corrigido pelo IPCA")
     ax.set_xlabel("Mês")
     ax.set_ylabel("Variação (%)")
     ax.set_xticks(range(len(meses)))
@@ -161,9 +227,11 @@ if len(anos) > 1:
     ax.grid(axis='y')
     st.pyplot(fig)
 
-# Tabela final formatada
+# =============================
+# 🔹 Tabela final
+# =============================
 st.header("Tabela Final de Precatórios Corrigidos")
-df_precatorios_f = df_precatorios.copy()
+df_precatorios_f = df_filtrado[['ANO','MES','VALOR','DATA_BASE','INDICE','VALOR_CORRIGIDO']].copy()
 df_precatorios_f['VALOR'] = df_precatorios_f['VALOR'].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 df_precatorios_f['VALOR_CORRIGIDO'] = df_precatorios_f['VALOR_CORRIGIDO'].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 st.dataframe(df_precatorios_f)
