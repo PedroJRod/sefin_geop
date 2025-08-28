@@ -9,7 +9,9 @@ st.set_page_config(page_title="Relatório de Precatórios", layout="wide")
 st.title("Relatório de Precatórios")
 
 st.write('''
-**Consulta realizada nas Notas de Lançamento Contábeis no SIGEF por meio do evento nº 540905 (APROPRIAÇÃO DE PRECATÓRIOS).**
+**Consulta realizada nas Notas de Lançamento Contábeis no SIGEF por meio do evento nº 540905 (APROPRIAÇÃO DE PRECATÓRIOS).
+Após a apropriação do saldo é confeccionado as Preparação Pagamento Extra Orçamentaria evento precatorios 700023 - valores individuais boletos
+         **
             ''')
 
 # Diretórios
