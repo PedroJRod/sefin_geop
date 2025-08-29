@@ -1,0 +1,42 @@
+from gerar_parquet import executar_consulta, salvar_parquet
+
+
+query = """
+    WITH BASE AS (
+    SELECT
+        TO_CHAR(F.DATA_REFERENCIA, 'YYYY') AS EXERCICIO,
+        TO_CHAR(F.DATA_REFERENCIA, 'MM') AS MES,
+        F.ID_RECEITA,
+        SUM(F.VALOR_PAGO_TOTAL) AS VALOR
+    FROM BI.ARR_F_LANCAMENTO_DETALHE F
+    GROUP BY TO_CHAR(F.DATA_REFERENCIA, 'YYYY'), TO_CHAR(F.DATA_REFERENCIA, 'MM'), F.ID_RECEITA
+), 
+RESUMO AS (
+    SELECT
+        B.EXERCICIO,
+        B.MES,
+        D.DESCRICAO_GRUPO_SUARE,
+        D.DESCRICAO_SUBGRUPO,
+        B.ID_RECEITA,
+        D.NOME_RECEITA,
+        D.DESCRICAO_GRUPO,
+        SUM(B.VALOR) AS VALOR
+    FROM BASE B
+    JOIN BI.ARR_D_RECEITA D ON D.RECEITA = B.ID_RECEITA
+    WHERE D.DESCRICAO_GRUPO_SUARE = 'IDARON'
+    GROUP BY
+        B.EXERCICIO,
+        B.MES,
+        D.DESCRICAO_GRUPO_SUARE,
+        D.DESCRICAO_SUBGRUPO,
+        B.ID_RECEITA,
+        D.NOME_RECEITA,
+        D.DESCRICAO_GRUPO
+)
+SELECT *
+FROM RESUMO
+ORDER BY EXERCICIO, MES, ID_RECEITA
+"""
+
+df = executar_consulta(query)
+salvar_parquet(df, "receitas_idaron.parquet")
