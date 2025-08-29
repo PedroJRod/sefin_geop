@@ -92,8 +92,8 @@ with col1:
 # =============================
 # 🔹 Visualização dos dados
 # =============================
-st.dataframe(df_filtrado)
-st.write(df_filtrado.describe())
+st.dataframe(df_filtrado[['ANO','MES','VALOR']])
+st.write(df_filtrado[['MES','VALOR']].describe())
 
 # Série temporal
 st.header("Evolução Mensal dos Precatórios")
@@ -246,3 +246,41 @@ df_precatorios_f['VALOR_CORRIGIDO'] = df_precatorios_f.apply(
 df_precatorios_f['VALOR'] = df_precatorios_f['VALOR'].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 df_precatorios_f['VALOR_CORRIGIDO'] = df_precatorios_f['VALOR_CORRIGIDO'].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 st.dataframe(df_precatorios_f)
+
+
+
+
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
+st.header("Previsão Futura dos Precatórios (Próximos 6 Meses)")
+st.write("Usamos o modelo Exponential Smoothing que é eficaz para séries temporais com tendência, mas sem sazonalidade explícita, adequado para nossos dados mensais de precatórios.")
+
+df_precatorios_p = df_filtrado.copy()
+
+df_precatorios_p['VALOR_CORRIGIDO'] = df_precatorios_p.apply(
+    lambda row: row['VALOR'] if pd.isna(row['VALOR_CORRIGIDO']) else row['VALOR_CORRIGIDO'], axis=1
+)
+
+df_precatorios_p["INDICE"] = df_precatorios_p["INDICE"].interpolate(method="linear")
+
+# --- 2. Previsão com Exponential Smoothing ---
+# Usamos VALOR_CORRIGIDO como série principal
+serie = df_precatorios_p.set_index("DATA_BASE")["VALOR_CORRIGIDO"]
+
+# Ajuste do modelo (sem sazonalidade explícita, pois temos poucos meses)
+modelo = ExponentialSmoothing(serie, trend="add").fit()
+
+# Previsão para os próximos 6 meses
+previsao = modelo.forecast(6)
+
+# Converter previsão em DataFrame para facilitar
+previsao_df = previsao.reset_index()
+previsao_df.columns = ["DATA_BASE", "VALOR_PREVISTO"]
+
+# Formatar valores no padrão brasileiro
+previsao_df["VALOR_PREVISTO_BR"] = previsao_df["VALOR_PREVISTO"].apply(
+    lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+)
+
+st.write("Previsão dos próximos 6 meses:")
+st.dataframe(previsao_df[["DATA_BASE", "VALOR_PREVISTO_BR"]])
